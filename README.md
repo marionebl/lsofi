@@ -20,7 +20,7 @@ Grab it from npm
 // given 1337 is occupied and 1338 is not
 const lsofi = require('lsofi')
 const occupied = await lsofi(1337)
-const free = await(1338)
+const free = await lsofi(1338)
 
 console.log(occupied, free)
 // => console.log(9834, null)
