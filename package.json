@@ -1,16 +1,23 @@
 {
   "name": "lsofi",
   "version": "1.0.0",
+  "type": "module",
   "description": "Find processes occupying a given port",
-  "files": ["index.js"],
-  "scripts": {
-    "deps": "dependency-check . && dependency-check . --extra --no-dev",
-    "lint": "standard",
-    "start": "ava --watch",
-    "test": "standard && npm run deps && ava"
+  "files": [
+    "index.js",
+    "index.cjs"
+  ],
+  "main": "./index.cjs",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.cjs"
+    }
   },
-  "standard": {
-    "parser": "babel-eslint"
+  "scripts": {
+    "lint": "oxlint .",
+    "start": "node --test --watch",
+    "test": "npm run lint && node --test"
   },
   "keywords": [
     "tool",
@@ -25,17 +32,12 @@
     "type": "git",
     "url": "http://github.com/marionebl/lsofi.git"
   },
-  "dependencies": {
-    "is-number": "2.1.0",
-    "through2": "2.0.1"
+  "engines": {
+    "node": ">=20.0.0"
   },
+  "dependencies": {},
   "devDependencies": {
-    "ava": "0.16.0",
-    "babel-eslint": "6.1.2",
-    "dependency-check": "2.6.0",
-    "get-port": "2.1.0",
-    "get-server-port": "1.0.0",
-    "standard": "8.0.0",
-    "unexpected": "10.17.0"
+    "get-port": "7.1.0",
+    "oxlint": "1.50.0"
   }
 }
