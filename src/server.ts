@@ -1,4 +1,5 @@
 import net from 'node:net'
+
 import getPort from 'get-port'
 
 const pid = process.pid
@@ -11,9 +12,10 @@ getPort()
     })
   })
 
-function send (message) {
+function send(message: { pid: number, port: number, type: string }) {
   if (!process.send) {
     return
   }
+
   process.send(message)
 }

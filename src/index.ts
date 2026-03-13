@@ -1,13 +1,18 @@
-const os = require('os')
-const readline = require('readline')
-const childProcess = require('child_process')
+import childProcess from 'node:child_process'
+import os from 'node:os'
+import readline from 'node:readline'
 
-module.exports = lsofi
+type Entry = {
+  local?: string
+  pid?: string
+  remote?: string
+}
+
+type EntryFilter = (entry: Entry) => false | number
 
 const isWindows = os.platform() === 'win32'
 
-// port:Number => Promise<pid:Number|Null>
-function lsofi (port) {
+export default function lsofi(port?: number | string): Promise<number | null> {
   if (typeof port === 'undefined') {
     return Promise.reject(new TypeError('missing required input parameter port'))
   }
@@ -37,10 +42,11 @@ function lsofi (port) {
   return new Promise((resolve, reject) => {
     let settled = false
 
-    const settle = value => {
+    const settle = (value: number | null) => {
       if (settled) {
         return
       }
+
       settled = true
       resolve(value)
     }
@@ -51,6 +57,7 @@ function lsofi (port) {
       if (settled) {
         return
       }
+
       settled = true
       reject(error)
     })
@@ -58,6 +65,12 @@ function lsofi (port) {
     child.on('close', () => {
       settle(null)
     })
+
+    if (!child.stdout) {
+      settled = true
+      reject(new Error('spawned process did not provide stdout'))
+      return
+    }
 
     const input = readline.createInterface({
       input: child.stdout,
@@ -84,17 +97,15 @@ function lsofi (port) {
   })
 }
 
-// String => [String]
-function parseWords (line) {
+function parseWords(line: string): string[] {
   return line.split(' ')
     .map(i => i.trim())
     .filter(Boolean)
     .filter(i => i !== '(LISTEN)')
 }
 
-// columns:[String], words:[String] => entry{pid: Number|Null}
-function collate (columns, words) {
-  return columns.reduce((entry, column, index) => {
+function collate(columns: Array<string | null>, words: string[]): Entry {
+  return columns.reduce<Entry>((entry, column, index) => {
     if (column === null) {
       return entry
     }
@@ -107,16 +118,17 @@ function collate (columns, words) {
       return entry
     }
 
-    const amend = {}
-    amend[column] = words[index]
-    return Object.assign({}, entry, amend)
+    return {
+      ...entry,
+      [column]: words[index]
+    }
   }, {})
 }
 
-function windowsFilter (port) {
+function windowsFilter(port: number): EntryFilter {
   return i => {
     const ports = [i.remote, i.local]
-      .filter(Boolean)
+      .filter((i): i is string => Boolean(i))
       .filter(address => address !== '*:*')
       .map(address => {
         const fragments = address.split(':')
@@ -142,7 +154,7 @@ function windowsFilter (port) {
   }
 }
 
-function unixFilter () {
+function unixFilter(): EntryFilter {
   return i => {
     if (typeof i !== 'object') {
       return false
