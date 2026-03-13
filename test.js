@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import childProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 import stream from 'node:stream'
 import test from 'node:test'
@@ -16,6 +17,7 @@ const __dirname = path.dirname(__filename)
 const require = createRequire(import.meta.url)
 const lsofiCjs = require('./index.cjs')
 const serial = { concurrency: false }
+const isWindows = os.platform() === 'win32'
 
 test('cjs compatibility entry exports a callable function', serial, () => {
   assert.equal(typeof lsofiCjs, 'function')
@@ -42,25 +44,31 @@ test('lsofi rejects Infinity input', serial, async () => {
 })
 
 test('lsofi resolves first matching pid from parser output', serial, async () => {
-  await withSpawnStub(
-    [
-      'COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME',
-      'node 1111 user 21u IPv4 0x1 0t0 TCP *:4444 (LISTEN)',
-      'node 2222 user 21u IPv4 0x1 0t0 TCP *:4444 (LISTEN)'
-    ],
-    async () => {
-      assert.equal(await lsofi(4444), 1111)
-    }
-  )
+  const lines = isWindows
+    ? [
+        'Proto Local Address Foreign Address State PID',
+        'TCP 0.0.0.0:4444 0.0.0.0:0 LISTENING 1111',
+        'TCP 0.0.0.0:4444 0.0.0.0:0 LISTENING 2222'
+      ]
+    : [
+        'COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME',
+        'node 1111 user 21u IPv4 0x1 0t0 TCP *:4444 (LISTEN)',
+        'node 2222 user 21u IPv4 0x1 0t0 TCP *:4444 (LISTEN)'
+      ]
+
+  await withSpawnStub(lines, async () => {
+    assert.equal(await lsofi(4444), 1111)
+  })
 })
 
 test('lsofi resolves null when parser finds no matching pid', serial, async () => {
-  await withSpawnStub(
-    ['COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME'],
-    async () => {
-      assert.equal(await lsofi(4444), null)
-    }
-  )
+  const lines = isWindows
+    ? ['Proto Local Address Foreign Address State PID']
+    : ['COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME']
+
+  await withSpawnStub(lines, async () => {
+    assert.equal(await lsofi(4444), null)
+  })
 })
 
 test('lsofi with non-occupied port', serial, async () => {
