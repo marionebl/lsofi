@@ -50,6 +50,16 @@ console.log(occupied, free)
   - `is-number`: replaced with native `Number()` and `Number.isFinite()` validation.
   - `through2`: replaced with native stream parsing via `readline`.
 
+## Development
+
+This project uses [mise](https://mise.jdx.dev/) to manage tool versions. Install mise, then run:
+
+```bash
+mise install
+```
+
+This will install the correct Node.js version as specified in `.tool-versions`.
+
 ## See also
 
 - [krampus](https://github.com/marionebl/krampus) - Kill processes occupying a given port
