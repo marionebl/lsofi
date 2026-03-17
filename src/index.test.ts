@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import childProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import stream from 'node:stream'
@@ -10,18 +9,12 @@ import { fileURLToPath } from 'node:url'
 
 import getPort from 'get-port'
 
-import lsofi from './index.js'
+import lsofi from './index.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const require = createRequire(import.meta.url)
-const lsofiCjs = require('./index.cjs')
 const serial = { concurrency: false }
 const isWindows = os.platform() === 'win32'
-
-test('cjs compatibility entry exports a callable function', serial, () => {
-  assert.equal(typeof lsofiCjs, 'function')
-})
 
 test('lsofi without input', serial, async () => {
   await assert.rejects(lsofi(), { message: /required input/ })
@@ -76,38 +69,36 @@ test('lsofi with non-occupied port', serial, async () => {
   assert.equal(await lsofi(port), null)
 })
 
-test('lsofi accepts numeric-string input', serial, async (t) => {
+test('lsofi accepts numeric-string input', serial, async t => {
   const s = await server()
   t.after(() => s.stop())
   assert.equal(await lsofi(String(s.port)), s.pid)
 })
 
-test('lsofi with occupied port', serial, async (t) => {
+test('lsofi with occupied port', serial, async t => {
   const s = await server()
   t.after(() => s.stop())
   assert.equal(await lsofi(s.port), s.pid)
 })
 
-function server () {
-  return new Promise((resolve) => {
-    const child = childProcess.fork(path.join(__dirname, 'server.js'))
+function server(): Promise<{ pid: number, port: number, stop: () => Promise<boolean>, type: string }> {
+  return new Promise(resolve => {
+    const child = childProcess.fork(path.join(__dirname, 'server.ts'))
 
-    const stop = function () {
-      return new Promise((resolve) => {
-        child.kill()
-        if (child.killed) {
-          return resolve(true)
-        }
-        child.on('exit', () => {
-          resolve(true)
-        })
+    const stop = () => new Promise<boolean>(resolveStop => {
+      child.kill()
+      if (child.killed) {
+        return resolveStop(true)
+      }
+
+      child.on('exit', () => {
+        resolveStop(true)
       })
-    }
+    })
 
-    const onStart = function (data) {
+    const onStart = (data: { pid: number, port: number, type: string }) => {
       if (data.type === 'start') {
-        data.stop = stop
-        resolve(data)
+        resolve({ ...data, stop })
       }
     }
 
@@ -115,21 +106,29 @@ function server () {
   })
 }
 
-async function withSpawnStub (lines, run) {
-  const originalSpawn = childProcess.spawn
-  childProcess.spawn = function () {
-    return spawnFixture(lines)
+async function withSpawnStub(lines: string[], run: () => Promise<void>): Promise<void> {
+  const mutableChildProcess = childProcess as typeof childProcess & {
+    spawn: typeof childProcess.spawn
   }
+  const originalSpawn = childProcess.spawn
+  mutableChildProcess.spawn = (() => {
+    return spawnFixture(lines)
+  }) as typeof childProcess.spawn
 
   try {
     await run()
   } finally {
-    childProcess.spawn = originalSpawn
+    mutableChildProcess.spawn = originalSpawn
   }
 }
 
-function spawnFixture (lines) {
-  const child = new EventEmitter()
+function spawnFixture(lines: string[]): ReturnType<typeof childProcess.spawn> {
+  const child = new EventEmitter() as unknown as EventEmitter & {
+    kill: () => void
+    killed: boolean
+    stdout: stream.PassThrough
+  }
+
   child.stdout = new stream.PassThrough()
   child.killed = false
 
@@ -148,5 +147,5 @@ function spawnFixture (lines) {
     }
   })
 
-  return child
+  return child as unknown as ReturnType<typeof childProcess.spawn>
 }
